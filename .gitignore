@@ -1,0 +1,8 @@
+dist
+*.hi
+*.o
+*.db
+.cabal-sandbox
+.idea
+samples/**
+

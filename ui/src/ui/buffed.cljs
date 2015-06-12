@@ -84,11 +84,14 @@
       (let [st #js {:backgroundColor bgc}]
         (dom/li #js {:className "list-group-item" :style st} text)))
 
-    (defn stripeHtml [text bgc]
+    (defn stripeHtml [data bgc]
+      (def postId (get data "postId"))
+      (def postText (get data "postText"))
+      (def publicId (get data "publicId"))
       (let [st #js {:backgroundColor bgc}]
         (dom/li #js {:className "list-group-item" :style st} nil
-                (b/button-group {} (b/button {:bs-size "xsmall" :onClick ()} "Загрузить"))
-                (dom/div #js {:dangerouslySetInnerHTML #js {:__html text}} nil))))
+                (b/button-group {} (b/button {:bs-size "xsmall" :onClick #(download-post publicId postId)} "Загрузить"))
+                (dom/div #js {:dangerouslySetInnerHTML #js {:__html postText}} nil))))
 
     ;; API CALLS
     (defn show-feed [currentPage recordLimit cmd-chan]
@@ -104,11 +107,14 @@
     (defn fetch-feed [publicId]
       (GET (str "/api/fetch?publicId=" publicId)))
 
+    (defn download-post [publicId postId]
+      (GET (str "/api/download-post?publicId=" publicId "&postId=" postId)))
+
     ;; RENDER FN
 
     (defmulti process-command (fn [cmd app-state cmd-chan] (:cmd-type cmd)))
     (defmethod process-command :ct-updated-feed [cmd app-state cmd-chan]
-      (om/update! app-state [:feed :data] (map #(% "postText") (get-in cmd [:cmd-params "posts"])))
+      (om/update! app-state [:feed :data] (get-in cmd [:cmd-params "posts"]))
       (om/update! app-state [:feed :paginator :pagesNumber] (get-in cmd  [:cmd-params "pagesNumber"]))
       (om/update! app-state [:view-mode] :feed))
 

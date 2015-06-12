@@ -21,7 +21,7 @@ import           Heist
 import qualified Heist.Interpreted as I
 
 import           IndexHandler(handleIndex)
-import           ApiHandler(handlePublicList, handleFeed, handleStartFetching)
+import           ApiHandler(handlePublicList, handleFeed, handleStartFetching, handleDownloadPost)
 
 ------------------------------------------------------------------------------
 import           Application
@@ -30,11 +30,12 @@ import           Application
 ------------------------------------------------------------------------------
 -- | The application's routes.
 routes :: [(ByteString, Handler App App ())]
-routes = [ ("/app",            handleIndex)
-         , ("/api/publicList", handlePublicList)
-         , ("/api/feed",       handleFeed)
-         , ("/api/fetch",      handleStartFetching)
-         , ("",                serveDirectory "static")
+routes = [ ("/app",               handleIndex)
+         , ("/api/publicList",    handlePublicList)
+         , ("/api/feed",          handleFeed)
+         , ("/api/fetch",         handleStartFetching)
+         , ("/api/download-post", handleDownloadPost)
+         , ("",                   serveDirectory "static")
          ]
 
 

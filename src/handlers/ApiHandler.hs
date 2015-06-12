@@ -1,4 +1,4 @@
-module ApiHandler (handlePublicList, handleFeed, handleStartFetching)
+module ApiHandler (handlePublicList, handleFeed, handleStartFetching, handleDownloadPost)
 where
 
 import           Control.Applicative
@@ -7,6 +7,7 @@ import           Snap.Snaplet (Handler)
 import           Snap.Snaplet.Heist
 import           Snap.Extras.JSON
 import           Snap.Core(getParam)
+import           Snap.Types(MonadSnap)
 
 import Data.Aeson.QQ
 import Data.Aeson.QQ
@@ -18,7 +19,7 @@ import qualified Heist.Interpreted as I
 import           Application
 
 import Data.Monoid((<>))
-import DbFunctions(DomPost, DomPublic, domPostText, domPostAuthorName, domPostImage, domPostPostId, domPublicLinkName, domPublicPublicId,
+import DbFunctions(DomPost, DomPublic, domPostPostId, domPostText, domPostAuthorName, domPostImage, domPostPostId, domPublicLinkName, domPublicPublicId,
                    loadPosts, listPublics, domPublicName, domPublicPublicId, getPublicById, domPublicLinkName, totalPostsCount)
 import Buffed(runFetching)
 import BuffedData(DataSourceMode(DSNormal))
@@ -60,7 +61,8 @@ handleFeed = do
 
       let recordOffset = pageNumber'' * postsCount
       posts <- liftIO $ loadPosts recordOffset postsCount
-      let postsJson = map (\post -> [aesonQQ|{ "postText":#{(decodeUtf8 $ domPostText $ fst post)}
+      let postsJson = map (\post -> [aesonQQ|{ "postId" :#{decodeUtf8 . domPostPostId . fst $ post}
+                                              ,"postText":#{(decodeUtf8 $ domPostText $ fst post)}
                                               ,"postUrl" :#{(T.pack("http://vk.com/") <> (decodeUtf8 $ domPublicLinkName $ snd post) <> T.pack("/" ++ (show $ domPostPostId $ fst post)))}
                                               ,"postAuthor":#{(decodeUtf8 $ domPostAuthorName $ fst post)}
                                               ,"postImage":#{(decodeUtf8 $ domPostImage $ fst post)}
@@ -68,7 +70,7 @@ handleFeed = do
 
       writeJSON $ [aesonQQ|{ "posts":#{postsJson}, "pagesNumber":#{pagesNumber} }|]
 
-    _ -> noParamJSON
+    _ -> writeApiRequestResult NoParam
 
 
 handleStartFetching :: Handler App App ()
@@ -80,10 +82,21 @@ handleStartFetching = do
       case publicMaybe of
         Just public -> do
           liftIO $ forkIO $ runFetching [ ("http://vk.com/" ++ (BSS.unpack $ domPublicLinkName public)), show DSNormal ]
-          writeJSON $ [aesonQQ| { "name": "all ok" }|]
-        _ -> writeJSON $ [aesonQQ| { "status": "No public" }|]
-    _ -> noParamJSON
+          writeApiRequestResult Ok
+        _ -> writeApiRequestResult NoPublic
+    _ -> writeApiRequestResult NoParam
+
+
+handleDownloadPost :: Handler App App ()
+handleDownloadPost = writeApiRequestResult Ok
 
 readInt = read . BSS.unpack
 
-noParamJSON = writeJSON $ [aesonQQ| { "status": "No param" }|]
+writeApiRequestResult :: (MonadSnap m, ToJSON a) => a -> m ()
+writeApiRequestResult r = writeJSON $ [aesonQQ| { "result": #{r} }|]
+
+data ApiRequestResult = NoParam | NoPublic | Ok
+instance ToJSON ApiRequestResult where
+  toJSON NoParam  = String "no_param"
+  toJSON NoPublic = String "no_public"
+  toJSON Ok       = String "ok"

@@ -66,6 +66,30 @@ getPublicById publicId' = withDb $ do
   domPublic <- getBy $ PublicId publicId'
   return $ fmap entityVal $ domPublic
 
+getPost :: Int -> BSS.ByteString -> IO (Maybe DomPost)
+getPost publicId' postId' = withDb $ do
+  ps <- select $
+        from $ \p -> do
+        where_ ((p ^. DomPostPublicId ==. (val publicId')) &&. (p ^. DomPostPostId ==. (val postId')))
+        return p
+
+
+  return $ Just $ entityVal $ head ps
+
+
+
+getPostOffset :: Int -> BSS.ByteString -> IO (Maybe Int)
+getPostOffset publicId postId = withDb $ do
+  ret <- select $
+         from $ \post -> do
+           let postDate = from $ \postWithId' -> do
+               where_ $ postWithId' ^. DomPostPostId ==. (val postId) &&. postWithId' ^. DomPostPublicId ==. (val publicId)
+               limit 1
+               return $ postWithId' ^. DomPostCreated
+           where_ $ post ^. DomPostPublicId ==. (val publicId) &&. post ^. DomPostCreated >=. sub_select postDate
+           return post
+  return $ Just $ length ret
+
 findPublic :: BSS.ByteString -> IO (Maybe DomPublic)
 findPublic linkName' = withDb $ do
   domPublic <- getBy $ PublicLinkName linkName'

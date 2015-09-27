@@ -88,6 +88,7 @@
       (def postId (get data "postId"))
       (def postText (get data "postText"))
       (def publicId (get data "publicId"))
+      (.log js/console (str data))
       (let [st #js {:backgroundColor bgc}]
         (dom/li #js {:className "list-group-item" :style st} nil
                 (b/button-group {} (b/button {:bs-size "xsmall" :onClick #(download-post publicId postId)} "Загрузить"))

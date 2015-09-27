@@ -2,7 +2,8 @@ dist
 *.hi
 *.o
 *.db
+*_flymake.*
+.stack-work
 .cabal-sandbox
 .idea
 samples/**
-

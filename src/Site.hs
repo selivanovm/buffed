@@ -11,14 +11,11 @@ module Site
 ------------------------------------------------------------------------------
 import           Control.Applicative()
 import           Data.ByteString (ByteString)
-import qualified Data.Text as T
 import           Snap.Core()
 import           Snap.Snaplet
-import           Snap.Snaplet.Heist
+import           Snap.Snaplet.Heist(heistInit)
 import           Snap.Snaplet.Session.Backends.CookieSession
 import           Snap.Util.FileServe
-import           Heist
-import qualified Heist.Interpreted as I
 
 import           IndexHandler(handleIndex)
 import           ApiHandler(handlePublicList, handleFeed, handleStartFetching, handleDownloadPost)

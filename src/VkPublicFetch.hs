@@ -1,42 +1,47 @@
-module VkPublicFetch where
+module VkPublicFetch(getNextPosts, fetchWall) where
 
-import Network.HTTP.Conduit
-import Network.HTTP.Types.Header()
-import Network (withSocketsDo)
+import           Network                      (withSocketsDo)
+import           Network.HTTP.Conduit
+import           Network.HTTP.Types.Header    ()
 
-import Data.Monoid
-import qualified Data.ByteString as DBS(filter, drop)
-import Data.ByteString.Search as BSSearch
-import qualified Data.ByteString.Lazy.Char8 as LBS
-import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString              as DBS (drop, filter)
+import qualified Data.ByteString.Char8        as BS
+import qualified Data.ByteString.Lazy.Char8   as LBS
+import           Data.ByteString.Search       as BSSearch
+import           Data.Monoid
 
-import Data.Encoding
-import Data.Encoding.UTF8
-import Data.Encoding.CP1251
+import           Data.Encoding
+import           Data.Encoding.CP1251
+import           Data.Encoding.UTF8
 
-import Data.Either
+import           Data.Either
 
-import Control.Retry
-import Control.Exception
-import Control.Monad.State as ST
-import Control.Monad.Reader
-import Control.Monad.Trans.Resource
+import           Control.Exception
+import           Control.Monad.Reader
+import           Control.Monad.State          as ST
+import           Control.Monad.Trans.Resource
+import           Control.Retry
 
-import Data.Conduit as DC
-import Data.Conduit.Binary as CB(sourceFile, conduitFile, lines, sinkFile)
-import qualified Data.Conduit.List as CL
+import           Data.Conduit                 as DC
+import           Data.Conduit.Binary          as CB (conduitFile, lines,
+                                                     sinkFile, sourceFile)
+import qualified Data.Conduit.List            as CL
 
-import BuffedData
-import VkPublicData
-import VkPublicParse
+import           BuffedData
+import           VkPublicData
+import           VkPublicParse                (parsePosts, parsePublicInfo)
 
-import DbFunctions (DomPublic, openDb, findPublic, newPublic, getPublicById, clearPublicIfDirty,
-                    domPublicPublicId, savePost, saveSuspiciousPost, setPublicFullFetched, publicState)
-import Database.Persist
+import           Database.Persist
+import           DbFunctions                  (DomPublic, clearPublicIfDirty,
+                                               domPublicPublicId, findPublic,
+                                               getPublicById, newPublic, openDb,
+                                               publicState, savePost,
+                                               saveSuspiciousPost,
+                                               setPublicFullFetched)
 
-import Data.String as STR
+import           Data.String                  as STR
 
-import System.Log.Logger
+import           System.Log.Logger
 
 headerFile :: FilePath
 headerFile = "header.txt"
@@ -56,6 +61,15 @@ convertHtml bs = dc . LBS.toStrict $ bs
 userAgent' :: BS.ByteString
 userAgent' = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.63 Safari/537.36"
 
+requestSinglePost :: Int -> Int -> IO BS.ByteString
+requestSinglePost ownerId' postId' = do
+  let url = "http://vk.com/wall-" ++ show publicId ++ "_" ++ show postId
+  reqq <- parseUrl url
+  let req = urlEncodedBody [] reqq { method = "GET", requestHeaders = [ ("User-Agent", userAgent') ] }
+  retrying (RetrySettings (limitedRetries 10) True 10000) needToRetry $ try (withManager $ httpLbs req)
+  where
+    needToRetry = either (const True) (const False)
+
 requestNextPosts :: Int -> Int -> IO (Either HttpException (Network.HTTP.Conduit.Response LBS.ByteString))
 requestNextPosts ownerId' offset' = do
   reqq <- parseUrl "http://vk.com/al_wall.php"
@@ -68,7 +82,7 @@ requestNextPosts ownerId' offset' = do
             reqq { method = "POST", requestHeaders = [ ("User-Agent", userAgent') ] }
   retrying (RetrySettings (limitedRetries 10) True 10000) needToRetry $ try (withManager $ httpLbs req)
   where
-    needToRetry r = either (const True) (const False) r
+    needToRetry = either (const True) (const False)
 
 savePart :: Config -> BS.ByteString -> IO ()
 savePart config string = case (dsMode config) of

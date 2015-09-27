@@ -20,10 +20,12 @@ import           Application
 
 import Data.Monoid((<>))
 import DbFunctions(DomPost, DomPublic, domPostPostId, domPostText, domPostAuthorName, domPostImage, domPostPostId, domPublicLinkName, domPublicPublicId,
-                   loadPosts, listPublics, domPublicName, domPublicPublicId, getPublicById, domPublicLinkName, totalPostsCount)
+                   loadPosts, listPublics, domPublicName, domPublicPublicId, getPublicById, domPublicLinkName, totalPostsCount,
+                   getPostOffset, domPostPublicId)
 import Buffed(runFetching)
 import BuffedData(DataSourceMode(DSNormal))
-
+import VkPublicFetch(getNextPosts)
+import Download(downloadPost)
 
 import Data.Text.Encoding(decodeUtf8)
 import           Data.Text (Text)
@@ -35,6 +37,7 @@ import Data.Int (Int64)
 import Control.Monad.IO.Class(liftIO)
 import Control.Concurrent(forkIO)
 
+import System.Log.Logger
 
 s :: String -> String
 s p = p
@@ -61,11 +64,12 @@ handleFeed = do
 
       let recordOffset = pageNumber'' * postsCount
       posts <- liftIO $ loadPosts recordOffset postsCount
-      let postsJson = map (\post -> [aesonQQ|{ "postId" :#{decodeUtf8 . domPostPostId . fst $ post}
-                                              ,"postText":#{(decodeUtf8 $ domPostText $ fst post)}
-                                              ,"postUrl" :#{(T.pack("http://vk.com/") <> (decodeUtf8 $ domPublicLinkName $ snd post) <> T.pack("/" ++ (show $ domPostPostId $ fst post)))}
+      let postsJson = map (\post -> [aesonQQ|{ "publicId"  :#{show . domPostPublicId . fst $ post}
+                                              ,"postId"    :#{decodeUtf8 . domPostPostId . fst $ post}
+                                              ,"postText"  :#{(decodeUtf8 $ domPostText $ fst post)}
+                                              ,"postUrl"   :#{(T.pack("http://vk.com/") <> (decodeUtf8 $ domPublicLinkName $ snd post) <> T.pack("/" ++ (show $ domPostPostId $ fst post)))}
                                               ,"postAuthor":#{(decodeUtf8 $ domPostAuthorName $ fst post)}
-                                              ,"postImage":#{(decodeUtf8 $ domPostImage $ fst post)}
+                                              ,"postImage" :#{(decodeUtf8 $ domPostImage $ fst post)}
                                              }|]) posts
 
       writeJSON $ [aesonQQ|{ "posts":#{postsJson}, "pagesNumber":#{pagesNumber} }|]
@@ -88,7 +92,16 @@ handleStartFetching = do
 
 
 handleDownloadPost :: Handler App App ()
-handleDownloadPost = writeApiRequestResult Ok
+handleDownloadPost = do
+  publicId <- getParam "publicId"
+  postId <- getParam "postId"
+  case (publicId, postId) of
+    (Just publicId', Just postId') -> do
+      liftIO $ doLog $ "downloading post : publicId = " ++ (BSS.unpack publicId') ++ ", postId = " ++ (BSS.unpack postId')
+      liftIO $ forkIO $ downloadPost (readInt publicId') postId'
+      writeApiRequestResult Ok
+    _ -> writeApiRequestResult NoParam
+  writeApiRequestResult Ok
 
 readInt = read . BSS.unpack
 
@@ -100,3 +113,5 @@ instance ToJSON ApiRequestResult where
   toJSON NoParam  = String "no_param"
   toJSON NoPublic = String "no_public"
   toJSON Ok       = String "ok"
+
+doLog a = putStrLn $ "ApiHandler : " ++ a

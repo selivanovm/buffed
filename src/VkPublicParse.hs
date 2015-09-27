@@ -1,37 +1,37 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module VkPublicParse where
+module VkPublicParse(parsePosts, parsePublicInfo) where
 
-import Text.HTML.TagSoup hiding (parseTags, renderTags)
-import Text.HTML.TagSoup.Fast
+import           Text.HTML.TagSoup           hiding (parseTags, renderTags)
+import           Text.HTML.TagSoup.Fast
 
-import qualified Data.ByteString.Char8 as BSS
+import qualified Data.ByteString.Char8       as BSS
 
-import Data.Encoding
-import Data.Encoding.UTF8
-import Data.Text.Encoding
+import           Data.Encoding
+import           Data.Encoding.UTF8
+import           Data.Text.Encoding
 
-import Data.Maybe
+import           Data.Maybe
 
-import Data.Char
-import Data.String
-import Data.Text as Txt(Text)
-import Data.Text.Read (decimal, signed)
+import           Data.Char
+import           Data.String
+import           Data.Text                   as Txt (Text)
+import           Data.Text.Read              (decimal, signed)
 
-import Data.List
-import Data.List.Split as LS
+import           Data.List
+import           Data.List.Split             as LS
 
-import Control.Monad(MonadPlus)
-import Control.Monad.Trans.Maybe
-import Control.Monad.Trans(lift)
-import Control.Monad.Extra(liftMaybe)
-import qualified Control.Monad.Parallel as MP
-import Control.Parallel.Strategies
-import Control.Applicative((<*>), (<$>))
+import           Control.Applicative         ((<$>), (<*>))
+import           Control.Monad               (MonadPlus)
+import           Control.Monad.Extra         (liftMaybe)
+import qualified Control.Monad.Parallel      as MP
+import           Control.Monad.Trans         (lift)
+import           Control.Monad.Trans.Maybe
+import           Control.Parallel.Strategies
 
-import System.Log.Logger
+import           System.Log.Logger
 
-import VkPublicData
+import           VkPublicData
 
 replaceSubstr :: String -> String -> (String -> String)
 replaceSubstr old new = intercalate new . LS.splitOn old
@@ -66,15 +66,21 @@ cleanWallPart :: BSS.ByteString -> BSS.ByteString
 cleanWallPart x = BSS.pack $ drop 2 $ replaceSubstr "<!-- -<>->" "" $ BSS.unpack x
 
 publicIdFromPostId :: Tag BSS.ByteString -> String
-publicIdFromPostId tag = takeWhile (/='_') $ drop 4 $ BSS.unpack $ fromAttrib "id" $ tag
+publicIdFromPostId tag = takeWhile (/='_') $ drop 4 $ BSS.unpack $ fromAttrib "id" tag
+
+textEndingTags = [ s"<div class=page_post_sized_thumbs>"
+                 , s"<div class=page_post_queue_wide>"
+                 , s"<div class=page_post_sized_full_thumb>"
+                 , s"<div class=page_post_sized_full_thumb_first>"
+                 ]
 
 parsePostData :: [Tag BSS.ByteString] -> MaybeT IO Post
 parsePostData postTags = do
 
-  cr' <- liftMaybe (headMaybe $ sections (~== s"<span class=rel_date>") postTags) :: MaybeT IO ([Tag BSS.ByteString])
+  cr' <- liftMaybe (headMaybe $ sections (~== s"<span class=rel_date>") postTags) :: MaybeT IO [Tag BSS.ByteString]
   created' <- liftMaybe (headMaybe (filter isTagText cr')) :: MaybeT IO (Tag BSS.ByteString)
-  extractCreated <- return $ innerText $ [ created' ]
-  let postDate = decodeStrictByteString UTF8 $ extractCreated
+  let extractCreated = innerText [ created' ]
+      postDate = decodeStrictByteString UTF8 extractCreated
   createdDate <- lift $ parseDate postDate
   liftMaybe $ postMaybe createdDate
 
@@ -83,21 +89,21 @@ parsePostData postTags = do
                                 , name = fromTagText $ head $ filter isTagText tag }
     signerTag = headMaybe $ sections (~== s"<a class=wall_signed_by>") postTags
     textTags = sections (~== s"<div class=wall_post_text>") postTags
-    renderText t = renderTags $ takeWhile (~/= s"<div class=page_post_queue_wide>") $ tail t
+    renderText t = renderTags $ takeWhile (\x -> any (x ~/=) textEndingTags) $ tail t
     tags = takeWhile (~/= s"<div class=wall_signed>") postTags
     postMaybe createdDate = do
       authorIdMaybe <- headMaybe <$> (headMaybe $ sections (~== s"<a class=author>") postTags)
       authorId' <- fromAttrib "data-from-id" <$> authorIdMaybe
 
-      postId' <- (fromAttrib "id") <$> headMaybe postTags
-      img' <- return $ catMaybes $ map (fmap (fromAttrib "src") . headMaybe) (sections (~== s"<img class=page_post_thumb_sized_photo>") postTags)
-      authorName' <- innerText <$> maybeToList <$> headMaybe <$> (filter isTagText) <$> (headMaybe $ sections (~== s"<a class=author>") postTags)
-      let signer' = fmap createUserRef signerTag
-      text' <- fmap renderText (headMaybe textTags) :: Maybe (BSS.ByteString)
+      postId' <- fromAttrib "id" <$> headMaybe postTags
+      let img' = mapMaybe (fmap (fromAttrib "src") . headMaybe) (sections (~== s"<img class=page_post_thumb_sized_photo>") postTags)
+          signer' = fmap createUserRef signerTag
+      authorName' <- innerText <$> maybeToList <$> headMaybe <$> filter isTagText <$> (headMaybe $ sections (~== s"<a class=author>") postTags)
+      text' <- fmap renderText (headMaybe textTags) :: Maybe BSS.ByteString
 
-      mediaElementSections <- (listMaybe (sections (~== s"<div class=play_btn_wrap>") tags)) :: Maybe [[Tag BSS.ByteString]]
-      mediaElements <- listMaybe (catMaybes $ map (headMaybe . dropWhile (~/= s"<input>")) mediaElementSections) :: Maybe [Tag BSS.ByteString]
-      titleElements <- (listMaybe $ catMaybes $ map (headMaybe . sections (~== s"<div class='title_wrap fl_l'>")) mediaElementSections) :: Maybe [[Tag BSS.ByteString]]
+      mediaElementSections <- listMaybe (sections (~== s"<div class=play_btn_wrap>") tags) :: Maybe [[Tag BSS.ByteString]]
+      mediaElements <- listMaybe (mapMaybe (headMaybe . dropWhile (~/= s"<input>")) mediaElementSections) :: Maybe [Tag BSS.ByteString]
+      titleElements <- (listMaybe $ mapMaybe (headMaybe . sections (~== s"<div class='title_wrap fl_l'>")) mediaElementSections) :: Maybe [[Tag BSS.ByteString]]
       elementInfos <- (listMaybe $ map (\x -> (fromTagText (x !! 3), fromTagText (x !! 8))) titleElements) :: Maybe [(BSS.ByteString, BSS.ByteString)]
       mediaRefElements <- (boolToMaybe (length mediaElements == length titleElements) (zip mediaElements elementInfos)) :: Maybe [(Tag BSS.ByteString, (BSS.ByteString, BSS.ByteString))]
       mediaRefs <- listMaybe $

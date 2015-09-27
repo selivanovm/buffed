@@ -30,8 +30,8 @@ runFetching args = do
              case args of
               [ url, dsMode ] -> do
                 bracket (logFileHandler) (\x -> ((putStrLn "Closing Logger") >> close x)) (\logHandler -> do
-                  updateGlobalLogger "Fetcher" $ (setHandlers [logHandler]) . (setLevel DEBUG)
-                  updateGlobalLogger "Parser" $ (setHandlers [logHandler]) . (setLevel DEBUG)
+                  updateGlobalLogger "Fetcher"     $ (setHandlers [logHandler]) . (setLevel DEBUG)
+                  updateGlobalLogger "Parser"      $ (setHandlers [logHandler]) . (setLevel DEBUG)
                   updateGlobalLogger "DbFunctions" $ (setHandlers [logHandler]) . (setLevel DEBUG)
                   runReaderT fetchWall Config { url = url, dsMode = read dsMode })
 

@@ -3,7 +3,7 @@ module VkPublicData where
 import Data.Text()
 import qualified Data.ByteString.Char8 as BSS
 
-import System.Locale
+--import System.Locale
 import Data.Time
 import Data.List.Split
 

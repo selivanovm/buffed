@@ -61,14 +61,16 @@ convertHtml bs = dc . LBS.toStrict $ bs
 userAgent' :: BS.ByteString
 userAgent' = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/31.0.1650.63 Safari/537.36"
 
-requestSinglePost :: Int -> Int -> IO BS.ByteString
+retryPolicy = ((exponentialBackoff 10000) <> (limitRetries 10))
+needToRetry :: Int -> (Either HttpException  (Network.HTTP.Conduit.Response LBS.ByteString)) -> IO Bool
+needToRetry _  r = return $ either (const True) (const False) r
+
+requestSinglePost :: Int -> Int -> IO (Either HttpException (Network.HTTP.Conduit.Response LBS.ByteString))
 requestSinglePost ownerId' postId' = do
-  let url = "http://vk.com/wall-" ++ show publicId ++ "_" ++ show postId
+  let url = "http://vk.com/wall-" ++ (show ownerId') ++ "_" ++ (show postId')
   reqq <- parseUrl url
   let req = urlEncodedBody [] reqq { method = "GET", requestHeaders = [ ("User-Agent", userAgent') ] }
-  retrying (RetrySettings (limitedRetries 10) True 10000) needToRetry $ try (withManager $ httpLbs req)
-  where
-    needToRetry = either (const True) (const False)
+  retrying retryPolicy needToRetry (try (withManager $ httpLbs req))
 
 requestNextPosts :: Int -> Int -> IO (Either HttpException (Network.HTTP.Conduit.Response LBS.ByteString))
 requestNextPosts ownerId' offset' = do
@@ -80,9 +82,7 @@ requestNextPosts ownerId' offset' = do
                            , ("al", "1")
                            , ("fixed", "")] $
             reqq { method = "POST", requestHeaders = [ ("User-Agent", userAgent') ] }
-  retrying (RetrySettings (limitedRetries 10) True 10000) needToRetry $ try (withManager $ httpLbs req)
-  where
-    needToRetry = either (const True) (const False)
+  retrying retryPolicy needToRetry (try (withManager $ httpLbs req))
 
 savePart :: Config -> BS.ByteString -> IO ()
 savePart config string = case (dsMode config) of
@@ -186,12 +186,11 @@ getWall _ url' = do
 getNextPosts :: Int -> Int -> IO BS.ByteString
 getNextPosts ownerId' offset' = do
   doLog $ "Fetching posts by url at offset " ++ show offset'
-  result <- retrying (RetrySettings (limitedRetries 50) True 10000) needToRetry $ requestNextPosts ownerId' offset'
+  result <- retrying retryPolicy needToRetry (requestNextPosts ownerId' offset')
   doLog $ "Fetching posts by url at offset " ++ (show offset') ++ " done"
   let prepResp = preparedResponse $ LBS.toStrict $ respString result
   return prepResp
   where
-    needToRetry r = either (const True) (const False) r
     respString resp = BSSearch.replace (BS.pack "<!-- -<>->") (BS.pack "") $ convertHtml $ (responseBody $ head $ rights [resp])
     preparedResponse resp = DBS.drop 2 $ resp
 

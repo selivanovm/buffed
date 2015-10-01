@@ -53,7 +53,7 @@ addLeadingZero (x:y:[]) = x:y:[]
 addLeadingZero h = trace (">>> wrong time" ++ h) h
 
 parsePostTime :: String -> TimeOfDay
-parsePostTime timeString = readTime defaultTimeLocale "%k:%M" timeString :: TimeOfDay
+parsePostTime timeString = parseTimeOrError True defaultTimeLocale "%k:%M" timeString :: TimeOfDay
 
 serverTimeZone :: TimeZone
 serverTimeZone = hoursToTimeZone 3
@@ -83,12 +83,12 @@ parseThisYearTime day month time = do
   currentUTCTime <- getCurrentTime
   let year = formatTime defaultTimeLocale "%Y" $ serverTime currentUTCTime
   let dateString = year ++ " " ++ (monthSignatureToNumber month) ++ " " ++ day ++ " " ++ time
-  let serverLocalTime = readTime defaultTimeLocale "%Y %m %d %k:%M" dateString :: LocalTime
+  let serverLocalTime = parseTimeOrError True defaultTimeLocale "%Y %m %d %k:%M" dateString :: LocalTime
   return $ localTimeToUTC serverTimeZone serverLocalTime
 
 parsePastYearTime :: String -> String -> String -> IO UTCTime
 parsePastYearTime day month year = do
-  return $ readTime defaultTimeLocale "%Y %m %d" $ year ++ " " ++ (monthSignatureToNumber month) ++ " " ++ day
+  return $ parseTimeOrError True defaultTimeLocale "%Y %m %d" $ year ++ " " ++ (monthSignatureToNumber month) ++ " " ++ day
 
 monthSignatureToNumber :: String -> String
 monthSignatureToNumber monthSignature = trace monthSignature $ case monthSignature of

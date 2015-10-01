@@ -7,9 +7,8 @@ import           Text.HTML.TagSoup.Fast
 
 import qualified Data.ByteString.Char8       as BSS
 
-import           Data.Encoding
+import           Data.Encoding (decodeStrictByteString)
 import           Data.Encoding.UTF8
-import           Data.Text.Encoding
 
 import           Data.Maybe
 
@@ -18,11 +17,6 @@ import           Data.String
 import           Data.Text                   as Txt (Text)
 import           Data.Text.Read              (decimal, signed)
 
-import           Data.List
-import           Data.List.Split             as LS
-
-import           Control.Applicative         ((<$>), (<*>))
-import           Control.Monad               (MonadPlus)
 import           Control.Monad.Extra         (liftMaybe)
 import qualified Control.Monad.Parallel      as MP
 import           Control.Monad.Trans         (lift)
@@ -32,9 +26,6 @@ import           Control.Parallel.Strategies
 import           System.Log.Logger
 
 import           VkPublicData
-
-replaceSubstr :: String -> String -> (String -> String)
-replaceSubstr old new = intercalate new . LS.splitOn old
 
 firstTag :: [[c]] -> c
 firstTag = head . head
@@ -61,9 +52,6 @@ s = id
 headMaybe :: [a] -> Maybe a
 headMaybe [] = Nothing
 headMaybe (x:_) = Just x
-
-cleanWallPart :: BSS.ByteString -> BSS.ByteString
-cleanWallPart x = BSS.pack $ drop 2 $ replaceSubstr "<!-- -<>->" "" $ BSS.unpack x
 
 publicIdFromPostId :: Tag BSS.ByteString -> String
 publicIdFromPostId tag = takeWhile (/='_') $ drop 4 $ BSS.unpack $ fromAttrib "id" tag

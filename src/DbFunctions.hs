@@ -1,16 +1,17 @@
 {-# LANGUAGE QuasiQuotes, TemplateHaskell, TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings, GADTs, FlexibleContexts #-}
-
+{-# LANGUAGE MultiParamTypeClasses, GeneralizedNewtypeDeriving #-}
 module DbFunctions where
 
 import qualified Data.ByteString.Char8 as BSS
 
 import Data.Text(Text)
 import Data.Time
-import Data.Int(Int64)
+import Data.Int (Int64)
 
 import Control.Monad.IO.Class (liftIO)
 
+import Database.Persist.Sql (toSqlKey)
 import Database.Persist.Sqlite (runSqlite)
 import Database.Persist.TH (mkPersist, mkMigrate, persistLowerCase, share, sqlSettings)
 import Database.Esqueleto
@@ -141,7 +142,7 @@ setPublicFullFetched publicId' = withDb $ do
 
 savePost :: Int -> Post -> IO ()
 savePost publicId' post = withDb $ do
-  postId' <- insert $ DomPost (publicId') (postId $ post) (created post) (BSS.pack "") (authorId post) (authorName  post) (Key $ PersistInt64 0) (text post)
+  postId' <- insert $ DomPost (publicId') (postId $ post) (created post) (BSS.pack "") (authorId post) (authorName  post) (toSqlKey 0) (text post)
   _ <- mapM (\mediaRef -> insert $ DomMediaRef publicId' (postId') (artist mediaRef) (title $ mediaRef)) $ media post
   return ()
 
@@ -169,7 +170,7 @@ saveSuspiciousPost publicId' post = withDb $ do
   p <- getBy $ PostId (postId $ post)
   case p of
     Nothing -> do
-      postId' <- insert $ DomPost (publicId') (postId $ post) (created post) (BSS.pack "") (authorId post) (authorName  post) (Key $ PersistInt64 0) (text post)
+      postId' <- insert $ DomPost (publicId') (postId $ post) (created post) (BSS.pack "") (authorId post) (authorName  post) (toSqlKey 0) (text post)
       _ <- mapM (\mediaRef -> insert $ DomMediaRef publicId' (postId') (artist mediaRef) (title $ mediaRef)) $ media post
       return ()
     Just _ -> return ()

@@ -16,11 +16,11 @@ extra-deps:
 - snap-extras-0.11.0.1
 - snap-loader-static-0.9.0.2
 resolver: lts-3.3
-extra-include-dirs:
-- C:\Users\ubear\Documents\coding\libss
+#extra-include-dirs:
+#- C:\Users\ubear\Documents\coding\libss
 #- C:\Users\ubear\Documents\coding\libs\icu\include
 #- C:\Users\ubear\Documents\coding\libs\pcre-8.33\inc
-extra-lib-dirs:
-- C:\Users\ubear\Documents\coding\libss
+#extra-lib-dirs:
+#- C:\Users\ubear\Documents\coding\libss
 #- C:\Users\ubear\Documents\coding\libs\icu\bin64
 #- C:\Users\ubear\Documents\coding\libs\pcre-8.33\lib\x64

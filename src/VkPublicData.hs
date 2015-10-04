@@ -39,12 +39,13 @@ data FetchResult = FetchingFail | FetchingSuccess | ParsingResult { posts :: [Po
                                                                   } deriving Show
 
 parseDate :: String -> IO UTCTime
-parseDate dateString = trace (dateString ++ "!!!") $ case dateString of
+parseDate dateString = case dateString of
   ('с':'е':'г':'о':'д':'н':'я':' ':'в':' ':time) -> parseTodayTime time
   ('в':'ч':'е':'р':'а':' ':'в':' ':time) -> parseYesterdayTime time
   (string) -> case (splitOn " " string) of
     (day:month:_:time:[]) -> parseThisYearTime (addLeadingZero day) month time
     (day:month:year:[]) -> parsePastYearTime (addLeadingZero day) month year
+    _ -> error $ "Can't parse date " ++ dateString
 
 
 addLeadingZero :: String -> String
@@ -104,3 +105,4 @@ monthSignatureToNumber monthSignature = trace monthSignature $ case monthSignatu
   "окт" -> "10"
   "ноя" -> "11"
   "дек" -> "12"
+  _ -> error $ "No match for month: " ++ monthSignature

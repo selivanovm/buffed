@@ -16,7 +16,7 @@ most cases you'll never need to modify this code.
 module Main where
 
 ------------------------------------------------------------------------------
-import           Control.Exception (SomeException, try)
+import           Control.Exception (SomeException, try, catch)
 import qualified Data.Text as T
 import           Snap.Http.Server
 import           Snap.Snaplet
@@ -31,7 +31,12 @@ import           Snap.Loader.Dynamic
 import           Snap.Loader.Static
 #endif
 
+import VkPublicFetch(runFetching)
 
+import System.Environment
+
+import DbFunctions(openDb)
+import Log        (initLogger)
 ------------------------------------------------------------------------------
 -- | This is the entry point for this web server application. It supports
 -- easily switching between interpreting source and running statically compiled
@@ -67,6 +72,27 @@ import           Snap.Loader.Static
 --
 main :: IO ()
 main = do
+    -- in case that it's a first run and there's no db created
+    openDb
+
+    initLogger
+
+    args <- getArgs
+    case args of
+      [] -> runWebApp
+      _ -> do
+        catchAny ((\args' ->
+          case args' of
+            [ url', dsMode' ] -> runFetching url' dsMode'
+            _ -> putStrLn "Usage: buffed <url> <dumpResponse = true | false>") args) $ \e -> putStrLn $ "Got an exception: " ++ show e
+
+
+
+catchAny :: IO a -> (SomeException -> IO a) -> IO a
+catchAny = Control.Exception.catch
+
+runWebApp :: IO ()
+runWebApp = do
     -- Depending on the version of loadSnapTH in scope, this either enables
     -- dynamic reloading, or compiles it without. The last argument to
     -- loadSnapTH is a list of additional directories to watch for changes to

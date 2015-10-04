@@ -18,7 +18,7 @@ import           Snap.Snaplet.Session.Backends.CookieSession
 import           Snap.Util.FileServe
 
 import           IndexHandler(handleIndex)
-import           ApiHandler(handlePublicList, handleFeed, handleStartFetching, handleDownloadPost)
+import           ApiHandler(handlePublicList, handleFeed, handleStartFetching, handleDownloadPost, handleCreateNewPublic)
 
 ------------------------------------------------------------------------------
 import           Application
@@ -27,11 +27,12 @@ import           Application
 ------------------------------------------------------------------------------
 -- | The application's routes.
 routes :: [(ByteString, Handler App App ())]
-routes = [ ("/app",               handleIndex)
-         , ("/api/publicList",    handlePublicList)
-         , ("/api/feed",          handleFeed)
-         , ("/api/fetch",         handleStartFetching)
-         , ("/api/download-post", handleDownloadPost)
+routes = [ ("/app",                   handleIndex)
+         , ("/api/publicList",        handlePublicList)
+         , ("/api/feed",              handleFeed)
+         , ("/api/fetch",             handleStartFetching)
+         , ("/api/download-post",     handleDownloadPost)
+         , ("/api/create-new-public", handleCreateNewPublic)
          , ("",                   serveDirectory "static")
          ]
 

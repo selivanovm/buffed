@@ -8,6 +8,7 @@
             [om-bootstrap.button :as b]
             [om-bootstrap.panel :as p]
             [om-bootstrap.pagination :as pg]
+            [om-bootstrap.input :as i]
             [ajax.core :refer [GET POST]]))
 
 (defn main []
@@ -24,6 +25,7 @@
                                         :pagesLimit 10
                                         :recordLimit 10
                                         :pagesNumber nil}}
+                                      :newPublicName ""
                                       :publicList
                                       {:data []}}))
 
@@ -62,10 +64,17 @@
       (p/panel {}
                (paginator app-state (:cmd-chan (om/get-shared owner)))
                (apply dom/ul #js {:className "list-group"}
-                      (map stripeHtml (get-in @app-state [:feed :data]) (cycle ["#ff0" "#fff"])))))
+                      (map stripeFeedItem (get-in @app-state [:feed :data]) (cycle ["#ff0" "#fff"])))))
 
     (defn public-list-view [app-state owner]
+      (defn createNewPublic []
+        (let [new-public-name (.-value (om/get-node owner "new-public-name"))]
+          (when new-public-name
+            (.log js/console new-public-name)
+            (put! (:cmd-chan (om/get-shared owner)) {:cmd-type :ct-create-new-public :cmd-params new-public-name}))))
       (p/panel {}
+               (i/input {:type "text" :label "New Public Name" :ref "new-public-name"})
+               (b/button {:bs-size "xsmall" :onClick #(createNewPublic)} "Create New Public")
                (apply dom/ul #js {:className "list-group"}
                       (map stripe
                            (map publicListItem (get-in @app-state [:publicList :data]))
@@ -84,19 +93,25 @@
       (let [st #js {:backgroundColor bgc}]
         (dom/li #js {:className "list-group-item" :style st} text)))
 
-    (defn stripeHtml [data bgc]
-      (def postId (get data "postId"))
-      (def postText (get data "postText"))
-      (def publicId (get data "publicId"))
-      (.log js/console (str data))
-      (let [st #js {:backgroundColor bgc}]
+    (defn stripeFeedItem [data bgc]
+      (let [st #js {:backgroundColor bgc}
+            postId (get data "postId")
+            postText (get data "postText")
+            publicId (get data "publicId")]
+        (.log js/console (str data))
         (dom/li #js {:className "list-group-item" :style st} nil
-                (b/button-group {} (b/button {:bs-size "xsmall" :onClick #(download-post publicId postId)} "Загрузить"))
+                (b/button-group {}
+                                (b/button {:bs-style "link" :bs-size "xsmall"
+                                           :href (str "http://vk.com/wall" publicId "_" postId)
+                                           :target "_blank"} "Link")
+                                (b/button {:id (str "btn-download-" postId) :bs-size "xsmall" :on-click #(download-post publicId postId)} "Загрузить"))
                 (dom/div #js {:dangerouslySetInnerHTML #js {:__html postText}} nil))))
 
     ;; API CALLS
     (defn show-feed [currentPage recordLimit cmd-chan]
-      (GET (str "/api/feed?currentPage=" currentPage "&limit=" recordLimit) {:handler (fn [r] (put! cmd-chan {:cmd-type :ct-updated-feed :cmd-params r}))}))
+      (GET (str "/api/feed?currentPage=" currentPage "&limit=" recordLimit)
+           {:handler
+            (fn [r] (.log js/console (str r)) (put! cmd-chan {:cmd-type :ct-updated-feed :cmd-params r}))}))
 
     (defn show-public-list [cmd-chan]
       (GET "/api/publicList" {:response-format :json
@@ -111,8 +126,11 @@
     (defn download-post [publicId postId]
       (GET (str "/api/download-post?publicId=" publicId "&postId=" postId)))
 
-    ;; RENDER FN
+    (defn create-new-public [newPublicName cmd-chan]
+      (GET (str "/api/create-new-public?name=" newPublicName) {:handler (fn [r] (show-public-list cmd-chan))}))
 
+
+    ;; UI COMMAND HANDLERS
     (defmulti process-command (fn [cmd app-state cmd-chan] (:cmd-type cmd)))
     (defmethod process-command :ct-updated-feed [cmd app-state cmd-chan]
       (om/update! app-state [:feed :data] (get-in cmd [:cmd-params "posts"]))
@@ -127,6 +145,10 @@
       (om/update! app-state [:publicList :data] (:cmd-params cmd))
       (om/update! app-state [:view-mode] :public-list))
 
+    (defmethod process-command :ct-create-new-public [cmd app-state cmd-chan]
+      (create-new-public (:cmd-params cmd) cmd-chan))
+
+    ;; RENDER FN
     (om/root
      (fn [app-state owner]
        (reify

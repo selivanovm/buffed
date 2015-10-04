@@ -19,7 +19,6 @@ Flag development
   Default: False
 
 executable buffed
---  main-is:           Buffed.hs
   main-is:           Main.hs
   hs-source-dirs:    src, src/handlers
   extensions:        EmptyDataDecls, OverloadedStrings, TemplateHaskell, QuasiQuotes, ScopedTypeVariables
@@ -27,6 +26,7 @@ executable buffed
   ghc-prof-options:  -O -rtsopts -fprof-auto -Wall
   Build-depends:
     base                    == 4.8.*,
+    directory                       ,
     text                      >= 1.1,
     persistent                >= 1.3,
     persistent-sqlite         >= 1.3,
@@ -54,7 +54,10 @@ executable buffed
     resourcet ==1.1.*,
     stringsearch >= 0.3.6.5,
     network                   ,
+    network-uri               ,
     monad-parallel == 0.7.*,
+    monad-control             ,
+    monad-logger              ,
     parallel,
     monad-extras == 0.5.*,
     heist                     == 0.14.*,
@@ -67,7 +70,8 @@ executable buffed
     xmlhtml                   >= 0.2,
     lens                      == 4.*,
     aeson                     == 0.8.0.2,
-    aeson-qq                  == 0.8.*
+    aeson-qq                  == 0.8.*,
+    temporary
   if flag(development)
     Build-depends:
       snap-loader-dynamic

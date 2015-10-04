@@ -1,46 +1,32 @@
-module ApiHandler (handlePublicList, handleFeed, handleStartFetching, handleDownloadPost)
+module ApiHandler (handlePublicList, handleFeed, handleStartFetching, handleDownloadPost, handleCreateNewPublic)
 where
 
-import           Control.Applicative
-
 import           Snap.Snaplet (Handler)
-import           Snap.Snaplet.Heist
 import           Snap.Extras.JSON
-import           Snap.Core(getParam)
-import           Snap.Types(MonadSnap)
+import           Snap.Core(MonadSnap, getParam)
 
-import Data.Aeson.QQ
 import Data.Aeson.QQ
 import Data.Aeson.Types
 
-import           Heist
-import qualified Heist.Interpreted as I
-
 import           Application
 
+import           System.Log.Logger
+
 import Data.Monoid((<>))
-import DbFunctions(DomPost, DomPublic, domPostPostId, domPostText, domPostAuthorName, domPostImage, domPostPostId, domPublicLinkName, domPublicPublicId,
+import DbFunctions(domPostPostId, domPostText, domPostAuthorName, domPostImage, domPostPostId, domPublicLinkName, domPublicPublicId,
                    loadPosts, listPublics, domPublicName, domPublicPublicId, getPublicById, domPublicLinkName, totalPostsCount,
-                   getPostOffset, domPostPublicId)
-import Buffed(runFetching)
+                   domPostPublicId)
+
+import VkPublicFetch(runFetching)
 import BuffedData(DataSourceMode(DSNormal))
-import VkPublicFetch(getNextPosts)
 import Download(downloadPost)
 
 import Data.Text.Encoding(decodeUtf8)
-import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.ByteString.Char8 as BSS
 
-import Data.Int (Int64)
-
 import Control.Monad.IO.Class(liftIO)
 import Control.Concurrent(forkIO)
-
-import System.Log.Logger
-
-s :: String -> String
-s p = p
 
 handlePublicList :: Handler App App ()
 handlePublicList = do
@@ -85,7 +71,7 @@ handleStartFetching = do
       publicMaybe <- liftIO $ getPublicById $ readInt x
       case publicMaybe of
         Just public -> do
-          liftIO $ forkIO $ runFetching [ ("http://vk.com/" ++ (BSS.unpack $ domPublicLinkName public)), show DSNormal ]
+          liftIO $ forkIO $ runFetching ("http://vk.com/" ++ (BSS.unpack $ domPublicLinkName public)) (show DSNormal)
           writeApiRequestResult Ok
         _ -> writeApiRequestResult NoPublic
     _ -> writeApiRequestResult NoParam
@@ -97,12 +83,22 @@ handleDownloadPost = do
   postId <- getParam "postId"
   case (publicId, postId) of
     (Just publicId', Just postId') -> do
-      liftIO $ doLog $ "downloading post : publicId = " ++ (BSS.unpack publicId') ++ ", postId = " ++ (BSS.unpack postId')
+      liftIO $ infoM "API" $ "downloading post : publicId = " ++ (BSS.unpack publicId') ++ ", postId = " ++ (BSS.unpack postId')
       liftIO $ forkIO $ downloadPost (readInt publicId') postId'
       writeApiRequestResult Ok
     _ -> writeApiRequestResult NoParam
   writeApiRequestResult Ok
 
+handleCreateNewPublic :: Handler App App ()
+handleCreateNewPublic = do
+  publicNameParam <- getParam "name"
+  case publicNameParam of
+    Just publicName -> do
+      liftIO $ forkIO $ runFetching ("http://vk.com/" ++ (BSS.unpack publicName)) (show DSNormal)
+      writeApiRequestResult Ok
+    _ -> writeApiRequestResult NoParam
+
+readInt :: BSS.ByteString -> Int
 readInt = read . BSS.unpack
 
 writeApiRequestResult :: (MonadSnap m, ToJSON a) => a -> m ()
@@ -113,5 +109,3 @@ instance ToJSON ApiRequestResult where
   toJSON NoParam  = String "no_param"
   toJSON NoPublic = String "no_public"
   toJSON Ok       = String "ok"
-
-doLog a = putStrLn $ "ApiHandler : " ++ a

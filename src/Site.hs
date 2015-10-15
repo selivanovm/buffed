@@ -18,7 +18,7 @@ import           Snap.Snaplet.Session.Backends.CookieSession
 import           Snap.Util.FileServe
 
 import           IndexHandler(handleIndex)
-import           ApiHandler(handlePublicList, handleFeed, handleStartFetching, handleDownloadPost, handleCreateNewPublic)
+import           ApiHandler(handlePublicList, handleFeed, handleStartFetching, handleDownloadPost, handleCreateNewPublic, handleHidePost)
 
 ------------------------------------------------------------------------------
 import           Application
@@ -33,6 +33,7 @@ routes = [ ("/app",                   handleIndex)
          , ("/api/fetch",             handleStartFetching)
          , ("/api/download-post",     handleDownloadPost)
          , ("/api/create-new-public", handleCreateNewPublic)
+         , ("/api/hide-post",         handleHidePost)
          , ("",                   serveDirectory "static")
          ]
 

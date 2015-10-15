@@ -248,8 +248,7 @@ saveResult ownerId' posts' = do
   mapM_ (savePost ownerId') posts'
 
 saveSuspiciousResult :: Int -> [Post] -> IO ()
-saveSuspiciousResult ownerId' posts' = do
-  mapM_ (saveSuspiciousPost ownerId') posts'
+saveSuspiciousResult ownerId' posts' = mapM_ (saveSuspiciousPost ownerId') posts'
 
 processFeed' :: MonadIO m => Config -> PublicState -> Sink BS.ByteString m FetchResult
 processFeed' config publicState' = do

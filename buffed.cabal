@@ -25,6 +25,7 @@ executable buffed
   ghc-options:       -O -rtsopts -Wall -threaded -with-rtsopts=-N
   ghc-prof-options:  -O -rtsopts -fprof-auto -Wall
   Build-depends:
+    async                           ,
     base                    == 4.8.*,
     directory                       ,
     text                      >= 1.1,

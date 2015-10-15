@@ -147,7 +147,14 @@ setPostDownloaded publicId' postId' = withDb $ do
   update $ \p -> do
     set p [ DomPostDownloaded =. val True ]
     where_ $ p ^. DomPostPublicId ==. val publicId' &&. p ^. DomPostPostId ==. val postId'
-  liftIO $ infoM "Db" $ "Set post #" ++ (BSS.unpack postId') ++ "in public #" ++ (show publicId') ++ " to downloaded"
+  liftIO $ infoM "Db" $ "Set post #" ++ (BSS.unpack postId') ++ " in public #" ++ (show publicId') ++ " to downloaded"
+
+hidePost :: Int -> BSS.ByteString -> IO ()
+hidePost publicId' postId' = withDb $ do
+  update $ \p -> do
+    set p [ DomPostVisible =. val False ]
+    where_ $ p ^. DomPostPublicId ==. val publicId' &&. p ^. DomPostPostId ==. val postId'
+  liftIO $ infoM "Db" $ "Hide post #" ++ (BSS.unpack postId') ++ " in public #" ++ (show publicId')
 
 savePost :: Int -> Post -> IO ()
 savePost publicId' post = withDb $ do
@@ -155,23 +162,31 @@ savePost publicId' post = withDb $ do
   _ <- mapM (\mediaRef -> insert $ DomMediaRef publicId' (postId') (artist mediaRef) (title $ mediaRef)) $ media post
   return ()
 
-loadPosts :: Int -> Int -> IO [(DomPost, DomPublic)]
-loadPosts recordOffset postsCount = withDb $ do
-  ps <- select $
-    from $ \(domPost `InnerJoin` domPublic) -> do
-      on (domPost ^. DomPostPublicId ==. domPublic ^. DomPublicPublicId)
-      orderBy [ desc (domPost ^. DomPostCreated) ]
-      where_ $ domPost ^. DomPostDownloaded ==. val False &&. domPost ^. DomPostVisible ==. val True
-      offset (fromIntegral recordOffset)
-      limit (fromIntegral postsCount)
-      return (domPost, domPublic)
-  return $ map (\x -> (entityVal (fst x), entityVal (snd x))) ps
 
-totalPostsCount :: IO Int
-totalPostsCount = withDb $ do
+queryFilterByValue :: Maybe BSS.ByteString -> SqlExpr (Entity DomPost) -> SqlExpr (Value Bool)
+queryFilterByValue filterValue domPost = maybe (val True) (\fv -> domPost ^. DomPostText `like` (val $ BSS.pack ("%" ++ (BSS.unpack fv) ++ "%"))) filterValue
+
+postFilterQuery :: Maybe BSS.ByteString -> SqlExpr (Entity DomPost) -> SqlExpr (Value Bool)
+postFilterQuery filterValue domPost = domPost ^. DomPostDownloaded ==. val False &&. domPost ^. DomPostVisible ==. val True &&. (queryFilterByValue filterValue domPost)
+
+loadPosts :: Int -> Int -> Maybe BSS.ByteString -> IO [(DomPost, DomPublic)]
+loadPosts recordOffset postsCount filterValue =
+     withDb $ do
+       ps <- select $
+             from $ \(domPost `InnerJoin` domPublic) -> do
+               on (domPost ^. DomPostPublicId ==. domPublic ^. DomPublicPublicId)
+               orderBy [ desc (domPost ^. DomPostCreated) ]
+               where_ $ postFilterQuery filterValue domPost
+               offset (fromIntegral recordOffset)
+               limit (fromIntegral postsCount)
+               return (domPost, domPublic)
+       return $ map (\x -> (entityVal (fst x), entityVal (snd x))) ps
+
+totalPostsCount :: Maybe BSS.ByteString -> IO Int
+totalPostsCount filterValue = withDb $ do
   cnt' <-
     select $ from $ \domPost -> do
-      where_ $ domPost ^. DomPostDownloaded ==. val False &&. domPost ^. DomPostVisible ==. val True
+      where_ $ postFilterQuery filterValue domPost
       let cnt = countRows :: SqlExpr (Value Int)
       return cnt
   return $ (unValue . head) cnt'

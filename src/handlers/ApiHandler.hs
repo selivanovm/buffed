@@ -1,4 +1,4 @@
-module ApiHandler (handlePublicList, handleFeed, handleStartFetching, handleDownloadPost, handleCreateNewPublic)
+module ApiHandler (handlePublicList, handleFeed, handleStartFetching, handleDownloadPost, handleCreateNewPublic, handleHidePost)
 where
 
 import           Snap.Snaplet (Handler)
@@ -15,7 +15,7 @@ import           System.Log.Logger
 import Data.Monoid((<>))
 import DbFunctions(domPostPostId, domPostText, domPostAuthorName, domPostImage, domPostPostId, domPublicLinkName, domPublicPublicId,
                    loadPosts, listPublics, domPublicName, domPublicPublicId, getPublicById, domPublicLinkName, totalPostsCount,
-                   domPostPublicId)
+                   domPostPublicId, hidePost)
 
 import VkPublicFetch(runFetching)
 import BuffedData(DataSourceMode(DSNormal))
@@ -39,17 +39,19 @@ handleFeed :: Handler App App ()
 handleFeed = do
   pageNumberParam <- getParam "currentPage"
   limitParam <- getParam "limit"
+  filterValueParam <- getParam "filterValue"
   case (pageNumberParam, limitParam) of
     (Just pageNumberString, Just limitParam') -> do
       let pageNumber' = readInt pageNumberString
       let postsCount = readInt limitParam'
+      let filterValue = validFilterValue filterValueParam
 
-      totalPostsCount' <- liftIO totalPostsCount
+      totalPostsCount' <- liftIO $ totalPostsCount filterValue
       let pagesNumber = totalPostsCount' `div` postsCount
-      let pageNumber'' = if pagesNumber  >= pageNumber' then pageNumber' else pagesNumber
+      let pageNumber'' = if pagesNumber >= pageNumber' then pageNumber' else pagesNumber
 
       let recordOffset = pageNumber'' * postsCount
-      posts <- liftIO $ loadPosts recordOffset postsCount
+      posts <- liftIO $ loadPosts recordOffset postsCount filterValue
       let postsJson = map (\post -> [aesonQQ|{ "publicId"  :#{show . domPostPublicId . fst $ post}
                                               ,"postId"    :#{decodeUtf8 . domPostPostId . fst $ post}
                                               ,"postText"  :#{(decodeUtf8 $ domPostText $ fst post)}
@@ -62,6 +64,12 @@ handleFeed = do
 
     _ -> writeApiRequestResult NoParam
 
+validFilterValue :: Maybe BSS.ByteString -> Maybe BSS.ByteString
+validFilterValue filterValueParam = case filterValueParam of
+                                      Just filterValue -> if (length . BSS.unpack $ filterValue) > 3
+                                                            then Just filterValue
+                                                            else Nothing
+                                      Nothing          -> Nothing
 
 handleStartFetching :: Handler App App ()
 handleStartFetching = do
@@ -76,6 +84,16 @@ handleStartFetching = do
         _ -> writeApiRequestResult NoPublic
     _ -> writeApiRequestResult NoParam
 
+handleHidePost :: Handler App App ()
+handleHidePost = do
+  publicId <- getParam "publicId"
+  postId <- getParam "postId"
+  case (publicId, postId) of
+    (Just publicId', Just postId') -> do
+      liftIO $ infoM "API" $ "hiding post : publicId = " ++ (BSS.unpack publicId') ++ ", postId = " ++ (BSS.unpack postId')
+      liftIO $ forkIO $ hidePost (readInt publicId') postId'
+      writeApiRequestResult Ok
+    _ -> writeApiRequestResult NoParam
 
 handleDownloadPost :: Handler App App ()
 handleDownloadPost = do
@@ -87,7 +105,6 @@ handleDownloadPost = do
       liftIO $ forkIO $ downloadPost (readInt publicId') postId'
       writeApiRequestResult Ok
     _ -> writeApiRequestResult NoParam
-  writeApiRequestResult Ok
 
 handleCreateNewPublic :: Handler App App ()
 handleCreateNewPublic = do

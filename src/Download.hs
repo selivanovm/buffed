@@ -4,9 +4,10 @@ import qualified Data.ByteString.Char8 as BSS
 import qualified Data.ByteString       as B
 import           Data.List.Split       (splitOn)
 import           System.IO.Temp        (withSystemTempDirectory)
-import           System.Directory      (createDirectoryIfMissing, renameFile)
+import           System.Directory      (createDirectoryIfMissing, copyFile)
 import           Network.HTTP
 import           Network.URI           (parseURI)
+import qualified Control.Concurrent.Async as A
 
 import           VkPublicFetch         (requestSinglePost)
 import           Log                   (ScopedLogger, scopedLogger, doLogI, doLogD, doLogE)
@@ -27,21 +28,25 @@ downloadPost publicId postId = do
   fetchResult <- requestSinglePost publicId (read . BSS.unpack $ postId)
   logger `doLogD` "got a response"
   case fetchResult of
-    Left errorMsg -> do
-      logger `doLogE` ("Parsing ..." ++ errorMsg)
+    Left errorMsg -> logger `doLogE` ("Parsing ..." ++ errorMsg)
     Right links -> do
       logger `doLogD` "Links to download:"
       mapM_ (\link -> logger `doLogD` (BSS.unpack link)) links
       withSystemTempDirectory "buffed" (saveMediaFiles links)
       setPostDownloaded publicId postId
+  logger `doLogD` "Post has been successfully downloaded."
 
 saveMediaFiles ::  [BSS.ByteString] -> FilePath -> IO ()
 saveMediaFiles mediaLinks tmpDir = do
-  mapM_ (\link -> downloadFile tmpDir (BSS.unpack link)) mediaLinks
+  A.mapConcurrently (\link -> downloadFile tmpDir (BSS.unpack link)) mediaLinks
+
   createDirectoryIfMissing False downloadsDirectory
   mapM_ (\link -> do
     let fileName = fileNameFromPath (BSS.unpack link)
-    renameFile (tmpDir ++ "/" ++ fileName) (downloadsDirectory ++ "/" ++ fileName)
+        sourceFile = tmpDir ++ "/" ++ fileName
+        targetFile = downloadsDirectory ++ "/" ++ fileName
+    logger `doLogD` ("Moving " ++ sourceFile ++ " to " ++ targetFile ++ " ...")
+    copyFile sourceFile targetFile
     return ()) mediaLinks
   return ()
 

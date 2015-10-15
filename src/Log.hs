@@ -26,5 +26,6 @@ prepareLogger :: (GenericHandler Handle) -> IO ()
 prepareLogger logHandler = do
   updateGlobalLogger "Fetcher"     $ (setHandlers [logHandler]) . (setLevel DEBUG)
   updateGlobalLogger "Parser"      $ (setHandlers [logHandler]) . (setLevel DEBUG)
+  updateGlobalLogger "API"         $ (setHandlers [logHandler]) . (setLevel DEBUG)
   updateGlobalLogger "Db"          $ (setHandlers [logHandler]) . (setLevel DEBUG)
   updateGlobalLogger "Download"    $ (setHandlers [logHandler]) . (setLevel DEBUG)

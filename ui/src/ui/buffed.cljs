@@ -9,10 +9,14 @@
             [om-bootstrap.panel :as p]
             [om-bootstrap.pagination :as pg]
             [om-bootstrap.input :as i]
+            [om-bootstrap.grid :as g]
             [ajax.core :refer [GET POST]]))
 
 (defn main []
-  (let [cmd-chan (chan)]
+  (let [cmd-chan (chan)
+        default-record-limit 10
+        default-pages-limit 10
+        default-page 0]
 
     (enable-console-print!)
     ;;(.log js/console (str response))
@@ -24,7 +28,8 @@
                                        {:currentPage 0
                                         :pagesLimit 10
                                         :recordLimit 10
-                                        :pagesNumber nil}}
+                                        :pagesNumber nil
+                                        :filter-value ""}}
                                       :newPublicName ""
                                       :publicList
                                       {:data []}}))
@@ -36,89 +41,109 @@
     (defmethod main-view :public-list [app-state owner] (public-list-view app-state owner))
     (defmethod main-view :initial [app-state owner]
       (om/update! app-state [:view-mode] :feed)
-      (show-feed (get-in @app-state [:feed :paginator :currentPage]) (get-in @app-state [:feed :paginator :recordLimit]) (:cmd-chan (om/get-shared owner)))
+      (show-feed (get-in @app-state [:feed :paginator :currentPage])
+                 (get-in @app-state [:feed :paginator :recordLimit])
+                 (get-in @app-state [:feed :paginator :filter-value])
+                 (:cmd-chan (om/get-shared owner)))
       (feed-view app-state owner))
 
     (defmethod main-view :default [app-state owner]
       (throw (IllegalArgumentException.
               (str "No render method found for view mode " (get-in @app-state [:view-mode])))))
 
+
+    (defn text-filter [app-state owner]
+      (defn apply-text-filter []
+        (let [text-filter-value (.-value (om/get-node owner "text-filter-value"))]
+          (when text-filter-value
+            (put! (:cmd-chan (om/get-shared owner)) {:cmd-type :ct-apply-filter :cmd-params text-filter-value}))))
+      (g/grid {}
+       (g/row {}
+        (g/col {:md 8} (i/input {:type "text" :addon-before "Фильтр" :ref "text-filter-value"}))
+        (g/col {:md 4} (b/button {:bs-size "medium" :on-click #(apply-text-filter)} "Применить")))))
+
+
     (defn paginator [app-state cmd-chan]
-      (def currentPage (get-in @app-state [:feed :paginator :currentPage]))
-      (def pagesNumber (get-in @app-state [:feed :paginator :pagesNumber]))
-      (def pagesLimit (get-in @app-state [:feed :paginator :pagesLimit]))
-      (def currentOffset (* pagesLimit (quot currentPage pagesLimit)))
-      (def pagesToShow (min pagesLimit (- pagesNumber currentOffset)))
-      (defn updatePaginator [pageNumber] (put! cmd-chan {:cmd-type :ct-paginator-updated :cmd-params pageNumber}))
-      (defn btnClassName [pageNumber] (if (= pageNumber currentPage) "active" ""))
-      (apply pg/pagination {} (concat
-                               [(pg/page {:onClick (fn [_] (updatePaginator 0))} ".")]
-                               [(pg/previous {:onClick (fn [_] (updatePaginator (max 0 (- currentOffset pagesLimit))))})]
-                               (map (fn [pageNumber]
-                                      (pg/page {:className (btnClassName pageNumber) :onClick (fn [_] (updatePaginator pageNumber))} (inc pageNumber)))
-                                    (range currentOffset (+ currentOffset pagesToShow)))
-                               [(pg/next {:onClick (fn [_] (updatePaginator (min pagesNumber (+ pagesLimit currentOffset))))})]
-                               [(pg/page {:onClick (fn [_] (updatePaginator (* pagesLimit (quot pagesNumber pagesLimit))))} ".")])))
+      (let [currentPage (get-in @app-state [:feed :paginator :currentPage])
+            pagesNumber (get-in @app-state [:feed :paginator :pagesNumber])
+            pagesLimit (get-in @app-state [:feed :paginator :pagesLimit])
+            currentOffset (* pagesLimit (quot currentPage pagesLimit))
+            pagesToShow (min pagesLimit (- pagesNumber currentOffset))]
+
+        (defn updatePaginator [pageNumber] (put! cmd-chan {:cmd-type :ct-paginator-updated :cmd-params pageNumber}))
+        (defn btnClassName [pageNumber] (if (= pageNumber currentPage) "active" ""))
+        (apply pg/pagination {} (concat
+                                 [(pg/page {:onClick (fn [_] (updatePaginator 0))} ".")]
+                                 [(pg/previous {:onClick (fn [_] (updatePaginator (max 0 (- currentOffset pagesLimit))))})]
+                                 (map (fn [pageNumber]
+                                        (pg/page {:className (btnClassName pageNumber) :onClick (fn [_] (updatePaginator pageNumber))} (inc pageNumber)))
+                                      (range currentOffset (+ currentOffset pagesToShow)))
+                                 [(pg/next {:onClick (fn [_] (updatePaginator (min pagesNumber (+ pagesLimit currentOffset))))})]
+                                 [(pg/page {:onClick (fn [_] (updatePaginator (* pagesLimit (quot pagesNumber pagesLimit))))} ".")]))))
 
     (defn feed-view [app-state owner]
-      (p/panel {}
-               (paginator app-state (:cmd-chan (om/get-shared owner)))
-               (apply dom/ul #js {:className "list-group"}
-                      (map stripeFeedItem (get-in @app-state [:feed :data]) (cycle ["#ff0" "#fff"])))))
+      (let [cmd-chan (:cmd-chan (om/get-shared owner))]
+        (p/panel {}
+                 (text-filter app-state owner)
+                 (paginator app-state (:cmd-chan (om/get-shared owner)))
+                 (apply dom/ul #js {:className "list-group"}
+                        (map render-feed-item (get-in @app-state [:feed :data]) (cycle ["#ff0" "#fff"]) (cycle [cmd-chan]))))))
 
     (defn public-list-view [app-state owner]
       (defn createNewPublic []
         (let [new-public-name (.-value (om/get-node owner "new-public-name"))]
           (when new-public-name
-            (.log js/console new-public-name)
             (put! (:cmd-chan (om/get-shared owner)) {:cmd-type :ct-create-new-public :cmd-params new-public-name}))))
       (p/panel {}
-               (i/input {:type "text" :label "New Public Name" :ref "new-public-name"})
-               (b/button {:bs-size "xsmall" :onClick #(createNewPublic)} "Create New Public")
-               (apply dom/ul #js {:className "list-group"}
-                      (map stripe
-                           (map publicListItem (get-in @app-state [:publicList :data]))
-                           (cycle ["#ff0" "#fdf"])))))
+               (p/panel {:header "Добавить паблик"}
+                        (i/input {:type "text" :addon-before "http://vk.com/" :ref "new-public-name"})
+                        (b/button {:bs-size "xsmall" :onClick #(createNewPublic)} "Ok"))
+
+               (p/panel {:header "Список пабликов"}
+                        (apply dom/ul #js {:className "list-group"}
+                               (map stripe
+                                    (map publicListItem (filter (fn [post] (= true (:visible post))) (get-in @app-state [:publicList :data])))
+                                    (cycle ["#ff0" "#fdf"]))))))
 
     ;; UI functions
     (defn publicListItem [publicItem]
-      (def publicId (:publicId publicItem))
-      (def publicName (:publicName publicItem))
-      (dom/div nil
-               (.log js/console publicId)
-               (dom/span nil publicName)
-               (b/button {:bs-size "xsmall" :className "pull-right" :onClick #(fetch-feed (:publicId publicItem))} "Обновить")))
+      (let [publicId (:publicId publicItem)
+            publicName (:publicName publicItem)]
+        (dom/div nil
+                 (dom/span nil publicName)
+                 (b/button {:bs-size "xsmall" :className "pull-right" :onClick #(fetch-feed (:publicId publicItem))} "Обновить"))))
 
     (defn stripe [text bgc]
       (let [st #js {:backgroundColor bgc}]
         (dom/li #js {:className "list-group-item" :style st} text)))
 
-    (defn stripeFeedItem [data bgc]
+    (defn render-feed-item [data bgc cmd-chan]
       (let [st #js {:backgroundColor bgc}
             postId (get data "postId")
             postText (get data "postText")
             publicId (get data "publicId")]
-        (.log js/console (str data))
+
+        (defn hide-post [publicId postId]
+          (put! cmd-chan {:cmd-type :ct-hide-post :cmd-params {:publicId publicId :postId postId} }))
+
         (dom/li #js {:className "list-group-item" :style st} nil
                 (b/button-group {}
                                 (b/button {:bs-style "link" :bs-size "xsmall"
                                            :href (str "http://vk.com/wall" publicId "_" postId)
                                            :target "_blank"} "Link")
-                                (b/button {:id (str "btn-download-" postId) :bs-size "xsmall" :on-click #(download-post publicId postId)} "Загрузить"))
+                                (b/button {:bs-size "xsmall" :on-click #(download-post publicId postId)} "Загрузить")
+                                (b/button {:bs-size "xsmall" :on-click #(hide-post publicId postId)} "Скрыть"))
                 (dom/div #js {:dangerouslySetInnerHTML #js {:__html postText}} nil))))
 
     ;; API CALLS
-    (defn show-feed [currentPage recordLimit cmd-chan]
-      (GET (str "/api/feed?currentPage=" currentPage "&limit=" recordLimit)
-           {:handler
-            (fn [r] (.log js/console (str r)) (put! cmd-chan {:cmd-type :ct-updated-feed :cmd-params r}))}))
+    (defn show-feed [currentPage recordLimit filterValue cmd-chan]
+      (GET (str "/api/feed?currentPage=" currentPage "&limit=" recordLimit "&filterValue=" filterValue)
+           {:handler (fn [r] (put! cmd-chan {:cmd-type :ct-updated-feed :cmd-params data}))}))
 
     (defn show-public-list [cmd-chan]
       (GET "/api/publicList" {:response-format :json
                               :keywords? true
-                              :handler (fn [r]
-                                         (.log js/console (str r))
-                                         (put! cmd-chan {:cmd-type :ct-show-public-list :cmd-params r}))}))
+                              :handler (fn [r] (put! cmd-chan {:cmd-type :ct-show-public-list :cmd-params r}))}))
 
     (defn fetch-feed [publicId]
       (GET (str "/api/fetch?publicId=" publicId)))
@@ -126,9 +151,11 @@
     (defn download-post [publicId postId]
       (GET (str "/api/download-post?publicId=" publicId "&postId=" postId)))
 
+    (defn req-hide-post [publicId postId]
+      (GET (str "/api/hide-post?publicId=" publicId "&postId=" postId)))
+
     (defn create-new-public [newPublicName cmd-chan]
       (GET (str "/api/create-new-public?name=" newPublicName) {:handler (fn [r] (show-public-list cmd-chan))}))
-
 
     ;; UI COMMAND HANDLERS
     (defmulti process-command (fn [cmd app-state cmd-chan] (:cmd-type cmd)))
@@ -139,7 +166,10 @@
 
     (defmethod process-command :ct-paginator-updated [cmd app-state cmd-chan]
       (om/update! app-state [:feed :paginator :currentPage] (:cmd-params cmd))
-      (show-feed (:cmd-params cmd) (get-in @app-state [:feed :paginator :recordLimit]) cmd-chan))
+      (show-feed (:cmd-params cmd)
+                 (get-in @app-state [:feed :paginator :recordLimit])
+                 (get-in @app-state [:feed :paginator :filter-value])
+                 cmd-chan))
 
     (defmethod process-command :ct-show-public-list [cmd app-state cmd-chan]
       (om/update! app-state [:publicList :data] (:cmd-params cmd))
@@ -147,6 +177,21 @@
 
     (defmethod process-command :ct-create-new-public [cmd app-state cmd-chan]
       (create-new-public (:cmd-params cmd) cmd-chan))
+
+    (defmethod process-command :ct-apply-filter [cmd app-state cmd-chan]
+      (om/update! app-state [:feed :paginator :filter-value] (:cmd-params cmd))
+      (show-feed (get-in @app-state [:feed :paginator :currentPage])
+                 (get-in @app-state [:feed :paginator :recordLimit])
+                 (:cmd-params cmd)
+                 cmd-chan))
+
+    (defmethod process-command :ct-hide-post [cmd app-state cmd-chan]
+      (let [publicId (get-in cmd [:cmd-params :publicId])
+            postId (get-in cmd [:cmd-params :postId])
+            data (get-in @app-state [:feed :data])
+            new-data (filter (fn [post] (or (not= (get post "postId") postId) (not= (get post "publicId") publicId))) data)]
+        (om/update! app-state [:feed :data] new-data)
+        (req-hide-post publicId postId)))
 
     ;; RENDER FN
     (om/root

@@ -10,7 +10,8 @@
             [om-bootstrap.pagination :as pg]
             [om-bootstrap.input :as i]
             [om-bootstrap.grid :as g]
-            [ajax.core :refer [GET POST]]))
+            [ajax.core :refer [GET POST]]
+            [clojure.string :as str]))
 
 (defn main []
   (let [cmd-chan (chan)
@@ -94,6 +95,7 @@
         (let [new-public-name (.-value (om/get-node owner "new-public-name"))]
           (when new-public-name
             (put! (:cmd-chan (om/get-shared owner)) {:cmd-type :ct-create-new-public :cmd-params new-public-name}))))
+
       (p/panel {}
                (p/panel {:header "Добавить паблик"}
                         (i/input {:type "text" :addon-before "http://vk.com/" :ref "new-public-name"})
@@ -102,7 +104,7 @@
                (p/panel {:header "Список пабликов"}
                         (apply dom/ul #js {:className "list-group"}
                                (map stripe
-                                    (map publicListItem (filter (fn [post] (= true (:visible post))) (get-in @app-state [:publicList :data])))
+                                    (map publicListItem (get-in @app-state [:publicList :data]))
                                     (cycle ["#ff0" "#fdf"]))))))
 
     ;; UI functions
@@ -121,10 +123,13 @@
       (let [st #js {:backgroundColor bgc}
             postId (get data "postId")
             postText (get data "postText")
-            publicId (get data "publicId")]
+            publicId (get data "publicId")
+            postImages (str/split (get data "postImages") "<|>")]
 
         (defn hide-post [publicId postId]
           (put! cmd-chan {:cmd-type :ct-hide-post :cmd-params {:publicId publicId :postId postId} }))
+
+        (.log js/console (str postImages))
 
         (dom/li #js {:className "list-group-item" :style st} nil
                 (b/button-group {}
@@ -133,17 +138,19 @@
                                            :target "_blank"} "Link")
                                 (b/button {:bs-size "xsmall" :on-click #(download-post publicId postId)} "Загрузить")
                                 (b/button {:bs-size "xsmall" :on-click #(hide-post publicId postId)} "Скрыть"))
-                (dom/div #js {:dangerouslySetInnerHTML #js {:__html postText}} nil))))
+                (dom/div #js {:dangerouslySetInnerHTML #js {:__html postText}} nil)
+                (dom/div nil
+                 (map (fn [image] (dom/img #js {:src image :width 100})) postImages)) )))
 
     ;; API CALLS
     (defn show-feed [currentPage recordLimit filterValue cmd-chan]
       (GET (str "/api/feed?currentPage=" currentPage "&limit=" recordLimit "&filterValue=" filterValue)
-           {:handler (fn [r] (put! cmd-chan {:cmd-type :ct-updated-feed :cmd-params data}))}))
+           {:handler (fn [r] (put! cmd-chan {:cmd-type :ct-updated-feed :cmd-params r}))}))
 
     (defn show-public-list [cmd-chan]
       (GET "/api/publicList" {:response-format :json
                               :keywords? true
-                              :handler (fn [r] (put! cmd-chan {:cmd-type :ct-show-public-list :cmd-params r}))}))
+                              :handler (fn [r] (.log js/console (str r))  (put! cmd-chan {:cmd-type :ct-show-public-list :cmd-params r}))}))
 
     (defn fetch-feed [publicId]
       (GET (str "/api/fetch?publicId=" publicId)))
@@ -218,6 +225,7 @@
                           :onClick #(show-feed
                                      (get-in @app-state [:feed :paginator :currentPage])
                                      (get-in @app-state [:feed :paginator :recordLimit])
+                                     (get-in @app-state [:feed :paginator :filter-value])
                                      (:cmd-chan (om/get-shared owner)))} "Лента")
              (n/nav-item {:id "btn-public" :href "#"
                           :className (if (= (get-in @app-state [:view-mode]) :public-list) "active" "inactive")

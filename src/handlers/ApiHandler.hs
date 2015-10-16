@@ -13,7 +13,7 @@ import           Application
 import           System.Log.Logger
 
 import Data.Monoid((<>))
-import DbFunctions(domPostPostId, domPostText, domPostAuthorName, domPostImage, domPostPostId, domPublicLinkName, domPublicPublicId,
+import DbFunctions(domPostPostId, domPostText, domPostAuthorName, domPostImages, domPostPostId, domPublicLinkName, domPublicPublicId,
                    loadPosts, listPublics, domPublicName, domPublicPublicId, getPublicById, domPublicLinkName, totalPostsCount,
                    domPostPublicId, hidePost)
 
@@ -57,7 +57,7 @@ handleFeed = do
                                               ,"postText"  :#{(decodeUtf8 $ domPostText $ fst post)}
                                               ,"postUrl"   :#{(T.pack("http://vk.com/") <> (decodeUtf8 $ domPublicLinkName $ snd post) <> T.pack("/" ++ (show $ domPostPostId $ fst post)))}
                                               ,"postAuthor":#{(decodeUtf8 $ domPostAuthorName $ fst post)}
-                                              ,"postImage" :#{(decodeUtf8 $ domPostImage $ fst post)}
+                                              ,"postImages":#{(decodeUtf8 $ domPostImages $ fst post)}
                                              }|]) posts
 
       writeJSON $ [aesonQQ|{ "posts":#{postsJson}, "pagesNumber":#{pagesNumber} }|]

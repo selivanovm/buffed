@@ -37,22 +37,15 @@ DomUserRef
    accountLink Text
    deriving Show
 
-DomMediaRef
-   publicId   Int
-   postId     DomPostId
-   artist     BSS.ByteString
-   title      BSS.ByteString
-   deriving Show
-
 DomPost
    publicId   Int
    postId     BSS.ByteString
    created    UTCTime
-   image      BSS.ByteString
    authorId   BSS.ByteString
    authorName BSS.ByteString
    signer     DomUserRefId
    text       BSS.ByteString
+   images     BSS.ByteString  -- Containts separated links to post images
    visible    Bool
    downloaded Bool
    PostId     postId
@@ -108,9 +101,6 @@ deleteAllPostsByPublic public = withDb $ do
   liftIO $ infoM "Db" $ "Removing all data for public with id = " ++ (show $ domPublicPublicId $ public)
   delete $
     from $ \t -> where_ (t ^. DomPostPublicId ==. publicIdVal)
-  delete $
-    from $ \t ->
-     where_ (t ^. DomMediaRefPublicId ==. publicIdVal)
 
 publicState :: DomPublic -> IO PublicState
 publicState public
@@ -158,8 +148,7 @@ hidePost publicId' postId' = withDb $ do
 
 savePost :: Int -> Post -> IO ()
 savePost publicId' post = withDb $ do
-  postId' <- insert $ DomPost (publicId') (postId $ post) (created post) (BSS.pack "") (authorId post) (authorName  post) (toSqlKey 0) (text post) True False
-  _ <- mapM (\mediaRef -> insert $ DomMediaRef publicId' (postId') (artist mediaRef) (title $ mediaRef)) $ media post
+  insert $ DomPost (publicId') (postId $ post) (created post) (authorId post) (authorName post) (toSqlKey 0) (text post) (img post) True False
   return ()
 
 
@@ -196,8 +185,7 @@ saveSuspiciousPost publicId' post = withDb $ do
   p <- getBy $ PostId (postId $ post)
   case p of
     Nothing -> do
-      postId' <- insert $ DomPost (publicId') (postId $ post) (created post) (BSS.pack "") (authorId post) (authorName  post) (toSqlKey 0) (text post) True False
-      _ <- mapM (\mediaRef -> insert $ DomMediaRef publicId' (postId') (artist mediaRef) (title $ mediaRef)) $ media post
+      insert $ DomPost (publicId') (postId $ post) (created post) (authorId post) (authorName  post) (toSqlKey 0) (text post) (img post) True False
       return ()
     Just _ -> return ()
   return ()

@@ -27,6 +27,11 @@ import           System.Log.Logger
 
 import           VkPublicData
 
+headOr :: [a] -> a -> a
+headOr xs defaultValue = case xs of
+  [] -> defaultValue
+  _ -> head xs
+
 firstTag :: [[c]] -> c
 firstTag = head . head
 
@@ -42,11 +47,6 @@ listMaybe :: [a] -> Maybe [a]
 listMaybe [] = Nothing
 listMaybe l = Just l
 
-boolToMaybe :: Bool -> a -> Maybe a
-boolToMaybe True a = Just a
-boolToMaybe _ _ = Nothing
-
-
 s :: String -> String
 s = id
 
@@ -59,7 +59,6 @@ textEndingTags = [ s"<div class=page_post_sized_thumbs>"
                  , s"<div class=page_post_sized_full_thumb>"
                  , s"<div class=page_post_sized_full_thumb_first>"
                  ]
-
 
 mediaElementSectionsFromTags :: [Tag BSS.ByteString] -> [[Tag BSS.ByteString]]
 mediaElementSectionsFromTags = sections (~== s"<div class=play_btn_wrap>")
@@ -91,33 +90,24 @@ parsePostData postTags = do
     signerTag = listToMaybe $ sections (~== s"<a class=wall_signed_by>") postTags
     textTags = sections (~== s"<div class=wall_post_text>") postTags
     renderText t = renderTags $ takeWhile (\x -> not $ any (x ~==) textEndingTags) $ tail t
-    tags = takeWhile (~/= s"<div class=wall_signed>") postTags
     postMaybe createdDate = do
       authorIdMaybe <- listToMaybe <$> (listToMaybe $ sections (~== s"<a class=author>") postTags)
       authorId' <- fromAttrib "data-from-id" <$> authorIdMaybe
 
       postId' <- fromAttrib "id" <$> listToMaybe postTags
-      let img' = mapMaybe (fmap (fromAttrib "src") . listToMaybe) (sections (~== s"<img class=page_post_thumb_sized_photo>") postTags)
+      let postQueueWide = takeWhile (~/= s"<div class=page_post_queue_narrow") (headOr (sections (~== s"<div class=page_post_queue_wide>") postTags) [])
+          img' = mapMaybe (fmap (fromAttrib "src") . listToMaybe) (sections (~== s"<img class=page_post_thumb_sized_photo>") postQueueWide)
           signer' = fmap createUserRef signerTag
-          mediaElementSections = mediaElementSectionsFromTags tags
       authorName' <- innerText <$> maybeToList <$> listToMaybe <$> filter isTagText <$> (listToMaybe $ sections (~== s"<a class=author>") postTags)
       text' <- fmap renderText (listToMaybe textTags) :: Maybe BSS.ByteString
-      mediaElements <- mediaElementsFromTags mediaElementSections
-      titleElements <- (listMaybe $ mapMaybe (listToMaybe . sections (~== s"<div class='title_wrap fl_l'>")) mediaElementSections) :: Maybe [[Tag BSS.ByteString]]
-      elementInfos <- (listMaybe $ map (\x -> (fromTagText (x !! 3), fromTagText (x !! 8))) titleElements) :: Maybe [(BSS.ByteString, BSS.ByteString)]
-      mediaRefElements <- (boolToMaybe (length mediaElements == length titleElements) (zip mediaElements elementInfos)) :: Maybe [(Tag BSS.ByteString, (BSS.ByteString, BSS.ByteString))]
-      mediaRefs <- listMaybe $
-        map (\x -> MediaRef { mediaLink = mediaLinkFromTag (fst x), artist = (fst.snd) x, title = (snd.snd) x}) $
-          mediaRefElements
 
       return Post { postId = BSS.pack . tail . dropWhile (/='_') . BSS.unpack $ postId'
                   , created = createdDate
-                  , img = img'
+                  , img = concatImages img'
                   , authorId = authorId'
                   , authorName = authorName'
                   , signer = signer'
-                  , text = text'
-                  , media = mediaRefs }
+                  , text = text' }
 
 parsePublicInfo :: BSS.ByteString -> Maybe PublicInfo
 parsePublicInfo html = do

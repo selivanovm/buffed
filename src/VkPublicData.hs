@@ -5,6 +5,7 @@ import qualified Data.ByteString.Char8 as BSS
 
 --import System.Locale
 import Data.Time
+import Data.List (intercalate)
 import Data.List.Split
 
 import Debug.Trace
@@ -13,19 +14,13 @@ import Debug.Trace
 data UserRef = UserRef { accountLink :: BSS.ByteString
                        , name :: BSS.ByteString } deriving (Show)
 
-data MediaRef = MediaRef { mediaLink :: BSS.ByteString
-                         , artist :: BSS.ByteString
-                         , title :: BSS.ByteString
-                         } deriving (Show)
-
 data Post = Post { postId :: BSS.ByteString
                  , created :: UTCTime
-                 , img :: [BSS.ByteString]
+                 , img :: BSS.ByteString
                  , authorId :: BSS.ByteString
                  , authorName :: BSS.ByteString
                  , signer :: Maybe UserRef
                  , text :: BSS.ByteString
-                 , media :: [MediaRef]
                  } deriving (Show)
 
 
@@ -37,6 +32,14 @@ data FetchResult = FetchingFail | FetchingSuccess | ParsingResult { posts :: [Po
                                                                   , ownerId :: BSS.ByteString
                                                                   , parsedAtOffset :: BSS.ByteString
                                                                   } deriving Show
+imagesSeparator :: String
+imagesSeparator = "<|>"
+
+concatImages :: [BSS.ByteString] -> BSS.ByteString
+concatImages xs = BSS.pack $ intercalate imagesSeparator (map BSS.unpack xs)
+
+parseImages :: BSS.ByteString -> [BSS.ByteString]
+parseImages images = map BSS.pack $ splitOn imagesSeparator (BSS.unpack images)
 
 parseDate :: String -> IO UTCTime
 parseDate dateString = case dateString of

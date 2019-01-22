@@ -9,8 +9,6 @@ vk(vk.com) audio content fetcher. Allows the following :
 - keep track of new content on public walls on vk.com 
 - download mp3 from public walls on vk.com
 
-work in progress ...
-
 # Building & Running
 
 ## Prerequisites 
@@ -19,7 +17,7 @@ work in progress ...
  - *clojure* - Clojure compiler (tested with 1.10.0)
  - *leiningen* - Cloujre build tool (tested with 2.8.3)
 
-### Server part can built with *stack*:
+### To build server part:
 
   $ stack build
   

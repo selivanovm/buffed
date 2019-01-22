@@ -21,21 +21,21 @@ work in progress ...
 
 ### Server part can built with *stack*:
 
-  stack build
+  $ stack build
   
 ### To build client part:
 
-  cd ./ui 
+  $ cd ./ui 
   
-  lein cljsbuild once
+  $ lein cljsbuild once
   
-  cd ..
+  $ cd ..
   
-  ./cpui.sh
+  $ ./cpui.sh
 
 ### To run:
   
-  stack run
+  $ stack run
   
   open http://localhost:8000/app in the browser
   

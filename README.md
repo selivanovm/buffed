@@ -2,7 +2,7 @@
 
 Finally I admit that it's abandoned! 
 I lost interest and don't have time/motivation to keep it up to date.
-I'm keeping it for nostalgic reasons :)
+I'm keeping it here for nostalgic reasons :)
 
 vk(vk.com) audio content fetcher. Allows the following :
 
@@ -26,8 +26,11 @@ work in progress ...
 ### To build client part:
 
   cd ./ui 
+  
   lein cljsbuild once
+  
   cd ..
+  
   ./cpui.sh
 
 ### To run:

@@ -16,6 +16,11 @@ vk(vk.com) audio content fetcher. Allows the following :
  - *stack* - The Haskell Tool Stack (tested with 1.9.3)
  - *clojure* - Clojure compiler (tested with 1.10.0)
  - *leiningen* - Cloujre build tool (tested with 2.8.3)
+ - *happy* - Parser generator for Haskell (tested with 1.20.0)
+
+ Build is tested on Arch Linux on 2020-02-03,
+ however the app wasn't updated for quite some time,
+ so parsing doesn't work.
 
 ### To build server part:
 

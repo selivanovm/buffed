@@ -19,12 +19,7 @@ extra-deps:
 - snap-extras-0.11.0.1
 - snap-loader-static-0.9.0.2
 - tagged-0.8.6
+- git: https://github.com/RikvanToor/text-icu.git # Use a patched version of text-icu 
+  commit: e1da5ba89c8794861f7ad773702f4792beb315bf
+
 resolver: lts-3.8
-#extra-include-dirs:
-#- C:\Users\ubear\Documents\coding\libss
-#- C:\Users\ubear\Documents\coding\libs\icu\include
-#- C:\Users\ubear\Documents\coding\libs\pcre-8.33\inc
-#extra-lib-dirs:
-#- C:\Users\ubear\Documents\coding\libss
-#- C:\Users\ubear\Documents\coding\libs\icu\bin64
-#- C:\Users\ubear\Documents\coding\libs\pcre-8.33\lib\x64
